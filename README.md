@@ -8,13 +8,13 @@ Transaction Matching Under Noise and Distribution Shift* (A. Mirani).
 ```bash
 python3 -m venv .venv && . .venv/bin/activate     # Python 3.13
 pip install -r requirements.txt
-./run_all.sh                 # ~5-7 min on a laptop CPU; writes results/
+./run_all.sh                 # under 12 min on a two-core machine; writes results/
 python3 make_tables.py       # prints every table in the paper from results/
 python3 verify_claims.py     # checks every number stated in the paper's text
 ```
 
 `run_all.sh` writes `results/SHA256SUMS`. With the pinned versions, a rerun should match the
-released file byte for byte. (Two runs, multi-threaded and single-threaded, were identical.)
+released file. In the tested environment, a multi-threaded and a single-threaded run produced identical files; other platforms, library builds or thread counts were not tested.
 
 ## Files
 
@@ -30,6 +30,8 @@ released file byte for byte. (Two runs, multi-threaded and single-threaded, were
 | `results/recall_by_cause.csv` | recall by perturbation cause |
 | `results/numbers.json` | every other reported figure (error categories, calibration, importance, operations) |
 | `results/environment.json` | interpreter, library versions and runtime of the released run |
+| `results/timing.json` | wall-clock scoring time of the full-feature model, all candidates vs exact-rule residual, median of 7 interleaved repeats (machine-dependent, not checksummed; the `[timing]` checks in verify_claims.py will differ on other machines) |
+| `figures/eq1.tex`, `figures/eq1.png` | Equation (1) as LaTeX for the conference template, and as rendered in the draft |
 
 ## Notes
 

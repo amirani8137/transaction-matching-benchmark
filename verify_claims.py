@@ -40,7 +40,7 @@ gap = max(f1(d, "M_full") - f1(d, "R3") for d in [0, .25, .5, .75, 1])
 check("max learned-over-cascade F1 gap", gap, 0.006, 3)
 truth("H3 precision at cascade level (within 0.0002)", all(abs(pr(d, "H3") - pr(d, "R3")) < 2e-4 for d in [0.5, 1.0]))
 truth("H == M on all 50 main test sets", all(v["seeds_differing"] == 0 for v in N["paired_f1_differences"]["H-M_full"].values()))
-check("candidate recall min", min(o["cand_recall_min"] for o in N["operations"].values()), 0.992, 3)
+check("candidate recall min (%)", 100 * min(o["cand_recall_min"] for o in N["operations"].values()), 99.17, 2)
 fp = {k: sum(v.values()) for k, v in N["fp_categories_d_ge_05"].items()}
 check("H false matches", fp["H"], 139, 0); check("H3 false matches", fp["H3"], 236, 0); check("H_ER false matches", fp["H_ER"], 144, 0)
 check("H3 extra false matches (%)", 100 * (fp["H3"] / fp["H"] - 1), 70, 0)
@@ -64,7 +64,14 @@ check("noise R1 F1", ST.loc[("noise_beyond_training", "R1"), "f1"], 0.124, 3)
 check("M recall unfamiliar", ST.loc[("unfamiliar_names", "M_full"), "recall"], 0.842, 3); check("M recall base", ST.loc[("base", "M_full"), "recall"], 0.995, 3)
 check("cascade unfamiliar F1", ST.loc[("unfamiliar_names", "R3"), "f1"], 0.986, 3)
 truth("unseen vendors / repeated amounts change F1 by <= 0.001", all(abs(ST.loc[(t, m), "f1"] - ST.loc[("base", m), "f1"]) <= 0.001
-      for t in ["unseen_vendors", "repeated_amounts"] for m in ["R1", "R3", "M_full", "H", "H_ER"]))
+      for t in ["unseen_vendors", "monthly_recurring"] for m in ["R1", "R3", "M_full", "H", "H_ER"]))
+check("weekly H F1", ST.loc[("weekly_recurring", "H"), "f1"], 0.988, 3); check("weekly H precision", ST.loc[("weekly_recurring", "H"), "precision"], 0.990, 3)
+check("weekly R3 F1", ST.loc[("weekly_recurring", "R3"), "f1"], 0.994, 3)
+check("weekly R3-H", sp["weekly_recurring"]["R3-H"][0], 0.006, 3); check("its CI", sp["weekly_recurring"]["R3-H"][2], 0.002, 3)
+wk, bs = N["stress_fp_categories"]["weekly_recurring"]["H"], N["stress_fp_categories"]["base"]["H"]
+check("weekly H false matches", sum(wk.values()), 191, 0); check("base H false matches (10 sets)", sum(bs.values()), 26, 0)
+check("weekly H FP to partnerless ledger entries", wk["gl_unmatched"], 103, 0); check("weekly H swaps", wk["swap"], 45, 0)
+truth("H == M under weekly series", sp["weekly_recurring"]["H-M_full"][0] == 0)
 t = N["cascade_tiers_d_ge_05"]
 check("T1+T2 pairs", t["T1 exact"]["pairs"] + t["T2 reference"]["pairs"], 22645, 0)
 truth("T1 and T2 precision 1.0", t["T1 exact"]["precision"] == 1.0 and t["T2 reference"]["precision"] == 1.0)
@@ -77,14 +84,14 @@ check("MG vs M test sets differing", sum(v["seeds_differing"] for v in mg.values
 check("MG vs M max abs diff", max(max(abs(v["min"]), abs(v["max"])) for v in mg.values()), 0.0011, 4)
 check("tau .5 automated true-pair recall %", 100 * F.loc[0.5, "automated_true_pair_recall"], 98.4, 1)
 check("tau .5 record automation %", 100 * F.loc[0.5, "record_automation"], 91.9, 1)
-check("tau .5 precision %", 100 * F.loc[0.5, "auto_precision"], 99.74, 2); check("tau .5 review queue", F.loc[0.5, "review_queue_records"], 4780, 0)
+check("tau .5 precision %", 100 * F.loc[0.5, "auto_precision"], 99.74, 2); check("tau .5 review queue", F.loc[0.5, "bank_review_queue"], 4780, 0)
 check("tau .5 FP value $M", F.loc[0.5, "fp_value_usd"] / 1e6, 3.99, 2); check("tau .5 FP share of auto value %", 100 * F.loc[0.5, "fp_value_share"], 0.25, 2)
 check("tau .99 avoided", F.loc[0.5, "false_auto_matches"] - F.loc[0.99, "false_auto_matches"], 75, 0)
 check("tau .99 recall %", 100 * F.loc[0.99, "automated_true_pair_recall"], 73.0, 1)
-extra = F.loc[0.99, "review_queue_records"] - F.loc[0.5, "review_queue_records"]
+extra = F.loc[0.99, "bank_review_queue"] - F.loc[0.5, "bank_review_queue"]
 check("tau .99 extra review", extra, 14036, 0); check("records per avoided error", extra / 75, 187, 0)
 check("tau .99 precision %", 100 * F.loc[0.99, "auto_precision"], 99.84, 2)
-check("filtered vs recomputed max diff", max((F.false_auto_matches - RC.false_auto_matches).abs().max(), (F.review_queue_records - RC.review_queue_records).abs().max()), 1, 0)
+check("filtered vs recomputed max diff", max((F.false_auto_matches - RC.false_auto_matches).abs().max(), (F.bank_review_queue - RC.bank_review_queue).abs().max()), 1, 0)
 m = N["monetary_d_ge_05"]
 check("H value share %", 100 * m["H"]["share_of_bank_value"], 0.23, 2); check("R3 value share %", 100 * m["R3"]["share_of_bank_value"], 0.54, 2)
 check("H3 value share %", 100 * m["H3"]["share_of_bank_value"], 0.54, 2); check("R2 value share %", 100 * m["R2"]["share_of_bank_value"], 6.3, 1)
@@ -97,10 +104,16 @@ n_mid = sum(b["pairs"] for b in mid)
 check("pairs scored 0.1-0.5", n_mid, 797, 0); check("their match rate %", 100 * sum(b["pairs"] * b["match_rate"] for b in mid) / n_mid, 65, 0)
 o = N["operations"]
 check("R1 share of true pairs d=.5 %", 100 * o["0.5"]["r1_share_of_true_pairs"], 38.0, 1)
-check("scoring avoided d=.5 %", 100 * o["0.5"]["scoring_avoided"], 57.3, 1); check("scoring avoided d=1 %", 100 * o["1.0"]["scoring_avoided"], 22.2, 1)
+check("scoring avoided d=.5 %", 100 * o["0.5"]["scoring_avoided"], 57.3, 1); check("scored share d=.5 %", 100 * (1 - o["0.5"]["scoring_avoided"]), 42.7, 1)
+check("scoring avoided d=1 %", 100 * o["1.0"]["scoring_avoided"], 22.2, 1)
 p, e = N["protocol"], N["example_d05_seed101"]
 check("train pairs", p["train_pairs"], 463193, 0); check("train positive", p["train_positive"], 27930, 0); check("theta", p["cascade_theta"], 0.10, 2)
 for k, v in [("bank", 1988), ("gl", 2000), ("true_pairs", 1878), ("candidates", 31239)]:
     check(f"example {k}", e[k], v, 0)
+T = json.load(open(f"{R}/timing.json"))  # wall-clock, machine-dependent: checked against the released run only
+check("[timing] reduction d=.5 %", 100 * T["0.5"]["time_reduction"], 56, 0)
+check("[timing] per-set min d=.5 %", 100 * T["0.5"]["per_set_time_reduction_min"], 52, 0); check("[timing] per-set max d=.5 %", 100 * T["0.5"]["per_set_time_reduction_max"], 60, 0)
+check("[timing] reduction d=1 %", 100 * T["1.0"]["time_reduction"], 19, 0)
+check("[timing] per-set min d=1 %", 100 * T["1.0"]["per_set_time_reduction_min"], 16, 0); check("[timing] per-set max d=1 %", 100 * T["1.0"]["per_set_time_reduction_max"], 23, 0)
 print(f"\n{len(fails)} failed" if fails else "\nall claims match results/")
 sys.exit(1 if fails else 0)

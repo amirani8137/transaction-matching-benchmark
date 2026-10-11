@@ -518,6 +518,16 @@
     "unmatched_bank": 1
    }
   },
+  "monthly_recurring": {
+   "H": {
+    "decoy_diff_vendor": 2,
+    "decoy_same_vendor": 26
+   },
+   "H_ER": {
+    "decoy_same_vendor": 29,
+    "unmatched_bank": 1
+   }
+  },
   "noise_beyond_training": {
    "H": {
     "decoy_diff_vendor": 5,
@@ -530,16 +540,6 @@
     "decoy_same_vendor": 111,
     "gl_unmatched": 2,
     "swap": 5
-   }
-  },
-  "repeated_amounts": {
-   "H": {
-    "decoy_diff_vendor": 2,
-    "decoy_same_vendor": 26
-   },
-   "H_ER": {
-    "decoy_same_vendor": 29,
-    "unmatched_bank": 1
    }
   },
   "unfamiliar_names": {
@@ -582,6 +582,22 @@
     "swap": 1,
     "unmatched_bank": 3
    }
+  },
+  "weekly_recurring": {
+   "H": {
+    "decoy_diff_vendor": 1,
+    "decoy_same_vendor": 40,
+    "gl_unmatched": 103,
+    "swap": 45,
+    "unmatched_bank": 2
+   },
+   "H_ER": {
+    "decoy_diff_vendor": 2,
+    "decoy_same_vendor": 41,
+    "gl_unmatched": 102,
+    "swap": 40,
+    "unmatched_bank": 3
+   }
   }
  },
  "stress_paired_f1": {
@@ -602,6 +618,23 @@
     0.0007048417498851346
    ]
   },
+  "monthly_recurring": {
+   "H-M_full": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "H_ER-H": [
+    -0.00037898537144565037,
+    0.0006012292761043076,
+    0.0004300935147329599
+   ],
+   "R3-H": [
+    0.0013008754501686258,
+    0.001104880538224855,
+    0.000790383923291735
+   ]
+  },
   "noise_beyond_training": {
    "H-M_full": [
     0.0,
@@ -617,23 +650,6 @@
     -0.018825285192779696,
     0.002415052554946489,
     0.0017276245234630688
-   ]
-  },
-  "repeated_amounts": {
-   "H-M_full": [
-    0.0,
-    0.0,
-    0.0
-   ],
-   "H_ER-H": [
-    -0.00037898537144565037,
-    0.0006012292761043076,
-    0.0004300935147329599
-   ],
-   "R3-H": [
-    0.0013008754501686258,
-    0.001104880538224855,
-    0.000790383923291735
    ]
   },
   "unfamiliar_names": {
@@ -685,6 +701,23 @@
     0.0017603204539059947,
     0.0010462952457807755,
     0.0007484745297535517
+   ]
+  },
+  "weekly_recurring": {
+   "H-M_full": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "H_ER-H": [
+    2.951955534068462e-05,
+    0.001068257554469015,
+    0.0007641854189447433
+   ],
+   "R3-H": [
+    0.00620980125692111,
+    0.002707966637279176,
+    0.0019371626351158164
    ]
   }
  },

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prints the paper's tables (markdown) and headline numbers from results/ -- no numbers are typed by hand."""
+"""Prints the paper's Tables II-VI (markdown, numbered as in the manuscript) and headline numbers from results/ -- no numbers are typed by hand."""
 import json, sys
 import pandas as pd
 
@@ -27,28 +27,29 @@ print("| Method | d = 0.5 | d = 1.0 |\n| --- | --- | --- |")
 for m in ["R1", "R2", "R3", "M_full", "H", "H3"]:
     print(f"| {NAMES[m]} | {cell(0.5, m)} | {cell(1.0, m)} |")
 
-print("\nTABLE III ablations (F1 ± CI)")
-print("| Variant | d = 0.5 | d = 1.0 |\n| --- | --- | --- |")
-for m in ["M_full", "M_no_ref", "M_no_name", "M_no_text", "MG", "H_ER"]:
-    a, b = S.loc[(0.5, m)], S.loc[(1.0, m)]
-    print(f"| {NAMES[m]} | {f3(a.f1_mean)} ± {a.f1_ci95:.4f} | {f3(b.f1_mean)} ± {b.f1_ci95:.4f} |")
-
-print("\nTABLE IV recall by cause, d >= 0.5")
+print("\nTABLE III recall by cause, d >= 0.5")
 print("| Cause | True pairs | R1 | R3 | H |\n| --- | --- | --- | --- | --- |")
 lab = {"no_ref": "Missing reference", "clean": "Clean (no perturbation)", "lag>3": "Posting lag over 3 days",
        "fee": "Bank fee", "fx": "FX / rounding drift", "trunc_ref": "Truncated reference"}
 for k, v in sorted(N["recall_by_cause_d_ge_05"].items(), key=lambda kv: -kv[1]["pairs"]):
     print(f"| {lab[k]} | {v['pairs']:,} | {pct(v['R1'])} | {pct(v['R3'])} | {pct(v['H'])} |")
 
-print("\nTABLE V stress tests at d = 0.5 (F1; recall in parentheses)")
+print("\nTABLE IV stress tests at d = 0.5 (F1; recall in parentheses)")
 TESTS = [("base", "Training conditions"), ("unseen_vendors", "Unseen vendors"), ("unfamiliar_names", "Unfamiliar name forms"),
-         ("unseen_and_unfamiliar", "Unseen vendors + unfamiliar names"), ("repeated_amounts", "Repeated amounts (30% recurring)"),
+         ("unseen_and_unfamiliar", "Unseen vendors + unfamiliar names"), ("monthly_recurring", "Monthly same-vendor, same-amount series"),
+         ("weekly_recurring", "Weekly same-vendor, same-amount series"),
          ("noise_beyond_training", "Noise beyond training (d = 1.25)")]
 piv = ST.pivot_table(index=["test", "method"], columns="metric", values="mean")
 print("| Test | R3 rule cascade | M learned | H exact rules → learned |\n| --- | --- | --- | --- |")
 for t, name in TESTS:
     cells = [f"{f3(piv.loc[(t, m), 'f1'])} ({f3(piv.loc[(t, m), 'recall'])})" for m in ["R3", "M_full", "H"]]
     print(f"| {name} | " + " | ".join(cells) + " |")
+
+print("\nTABLE V ablations (F1 ± CI)")
+print("| Variant | d = 0.5 | d = 1.0 |\n| --- | --- | --- |")
+for m in ["M_full", "M_no_ref", "M_no_name", "M_no_text", "MG", "H_ER"]:
+    a, b = S.loc[(0.5, m)], S.loc[(1.0, m)]
+    print(f"| {NAMES[m]} | {f3(a.f1_mean)} ± {a.f1_ci95:.4f} | {f3(b.f1_mean)} ± {b.f1_ci95:.4f} |")
 
 print("\nTABLE VI partnerless items wrongly matched by H, d >= 0.5")
 print("| Item with no true partner | Items | Wrongly matched | Rate |\n| --- | --- | --- | --- |")
@@ -64,10 +65,10 @@ print("FP totals d>=0.5:", {k: sum(v.values()) for k, v in fp.items()}, "H:", fp
 print("same-vendor partner:", N["same_vendor_decoy_partner_d_ge_05"])
 f = RT[RT["mode"] == "filtered"].set_index("tau")
 rc = RT[RT["mode"] == "recomputed"].set_index("tau")
-print("routing filtered:\n", f[["auto_precision", "automated_true_pair_recall", "record_automation", "review_queue_records",
+print("routing filtered:\n", f[["auto_precision", "automated_true_pair_recall", "record_automation", "bank_review_queue", "ledger_review_queue",
                                  "false_auto_matches", "fp_value_usd", "fp_value_share"]].round(4).to_string())
 print("max |filtered - recomputed| false matches:", int((f.false_auto_matches - rc.false_auto_matches).abs().max()),
-      "review records:", int((f.review_queue_records - rc.review_queue_records).abs().max()))
+      "review records:", int((f.bank_review_queue - rc.bank_review_queue).abs().max()))
 print("monetary:", N["monetary_d_ge_05"])
 print("ops:", {d: {k: round(v, 4) for k, v in o.items()} for d, o in N["operations"].items()})
 print("tiers:", N["cascade_tiers_d_ge_05"])

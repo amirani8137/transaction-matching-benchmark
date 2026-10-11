@@ -1,0 +1,26 @@
+{
+ "method": "full-feature model, all candidates vs exact-rule residual; median of 7 interleaved repeats per test set",
+ "threads": "default",
+ "0.5": {
+  "test_sets": 10,
+  "pairs_all": 303234,
+  "pairs_residual": 129667,
+  "pair_reduction": 0.5724,
+  "all_candidates_s": 2.0514,
+  "residual_only_s": 0.8937,
+  "time_reduction": 0.5643,
+  "per_set_time_reduction_min": 0.5177,
+  "per_set_time_reduction_max": 0.5982
+ },
+ "1.0": {
+  "test_sets": 10,
+  "pairs_all": 306498,
+  "pairs_residual": 238369,
+  "pair_reduction": 0.2223,
+  "all_candidates_s": 2.0159,
+  "residual_only_s": 1.6255,
+  "time_reduction": 0.1937,
+  "per_set_time_reduction_min": 0.1561,
+  "per_set_time_reduction_max": 0.2308
+ }
+}

@@ -87,7 +87,8 @@ class Config:
     seed: int = 0
     vendors: str = "A"              # "A" (training vocabulary) or "B" (unseen)
     names: str = "standard"         # "standard" or "unfamiliar"
-    recurring: float = 0.0          # share of ledger entries in same-vendor, same-amount monthly series
+    recurring: float = 0.0          # share of ledger entries in same-vendor, same-amount series of three
+    recurring_gap: int = 30         # days between invoices in a series (30 = monthly, outside the 10-day window)
     same_vendor_decoy: float = 0.15  # share of extra bank records that reuse the source vendor
 
 
@@ -140,10 +141,10 @@ def make_dataset(cfg: Config) -> Data:
         vendor = rng.choice(vendors)
         amt_c = int(round(math.exp(rng.uniform(math.log(5_000), math.log(25_000_000)))))  # $50 .. $250,000
         if p_series and rng.random() < p_series:          # three monthly invoices, same vendor and amount
-            start = rng.randint(0, 29)
+            start = rng.randint(0, 89 - 2 * cfg.recurring_gap)
             for k in range(3):
                 if len(gl) < cfg.n:
-                    add(vendor, amt_c, start + 30 * k)
+                    add(vendor, amt_c, start + cfg.recurring_gap * k)
         else:
             add(vendor, amt_c, rng.randint(0, 89))
 
@@ -374,7 +375,7 @@ def evaluate(cfg, models, theta, keep_detail=False):
     truth = data.truth
     y = label(c, truth)
     amount = {b["id"]: b["amount_c"] for b in data.bank}
-    scores = {k: m.predict_proba(c[FEATURE_SETS[k]].values)[:, 1] for k, m in models.items()}
+    scores = {k: m.predict_proba(c[FEATURE_SETS[k]].values)[:, 1] for k, m in models.items()}  # for the M variants
 
     pred = {}
     pred["R1"] = rule_exact(c)
@@ -387,14 +388,20 @@ def evaluate(cfg, models, theta, keep_detail=False):
     r1b, r1g = {b for b, _ in pred["R1"]}, {g for _, g in pred["R1"]}
     res_mask = ~(c.b.isin(r1b) | c.g.isin(r1g)).values
     res = c[res_mask]
-    hm, hconf = assign(res, scores["full"][res_mask])
+    # hybrids score ONLY the pairs the rule stage left (residual-only scoring)
+    res_scores = models["full"].predict_proba(res[FEATURE_SETS["full"]].values)[:, 1] if len(res) else np.array([])
+    hm, hconf = assign(res, res_scores)
     pred["H"] = pred["R1"] | hm
-    hm_er, hconf_er = assign(res, scores["er"][res_mask])
+    res_scores_er = models["er"].predict_proba(res[FEATURE_SETS["er"]].values)[:, 1] if len(res) else np.array([])
+    hm_er, hconf_er = assign(res, res_scores_er)
     pred["H_ER"] = pred["R1"] | hm_er
     r3b, r3g = {b for b, _ in pred["R3"]}, {g for _, g in pred["R3"]}
     res3_mask = ~(c.b.isin(r3b) | c.g.isin(r3g)).values
-    h3m, _ = assign(c[res3_mask], scores["full"][res3_mask])
+    res3 = c[res3_mask]
+    h3m, _ = assign(res3, models["full"].predict_proba(res3[FEATURE_SETS["full"]].values)[:, 1] if len(res3) else np.array([]))
     pred["H3"] = pred["R3"] | h3m
+    # sanity check: residual-only scores equal the full-candidate scores on the same rows
+    assert np.array_equal(res_scores, scores["full"][res_mask])
 
     out = dict(cfg=asdict(cfg), n_bank=len(data.bank), n_gl=len(data.gl), n_true=len(truth), n_cand=len(c),
                cand_recall=len(set(zip(c.b.values, c.g.values)) & truth) / len(truth),
@@ -404,7 +411,7 @@ def evaluate(cfg, models, theta, keep_detail=False):
                r1_true=len(pred["R1"] & truth), r1_pairs=len(pred["R1"]),
                r3_true=len(pred["R3"] & truth), r3_pairs=len(pred["R3"]),
                tier_counts={k: [len(v), len(v & truth)] for k, v in tiers.items()},
-               scored_pairs_H=int(res_mask.sum()), scored_pairs_M=len(c),
+               scored_pairs_H=int(res_mask.sum()), scored_pairs_M=len(c), scored_pairs_H3=int(res3_mask.sum()),
                fp_value_c={k: int(sum(amount[b] for b, _ in pred[k] - truth)) for k in ("H", "H_ER", "R2", "R3", "H3")},
                total_value_c=int(sum(amount.values())))
     # same-vendor decoy errors: what did the true partner of the wrongly matched ledger entry look like?
@@ -427,7 +434,7 @@ def evaluate(cfg, models, theta, keep_detail=False):
     out["by_cause"] = by_cause
     if keep_detail:
         out["_detail"] = dict(R1=pred["R1"], hconf=hconf, truth=truth, amount=amount, n_bank=len(data.bank),
-                              res=res, res_scores=scores["full"][res_mask], res_y=y[res_mask])
+                              n_gl=len(data.gl), res=res, res_scores=res_scores, res_y=y[res_mask])
     return out
 
 
@@ -446,14 +453,35 @@ def routing(details, taus, recompute=True):
                 agg[(mode, "auto")] += len(auto); agg[(mode, "ok")] += len(ok)
                 agg[(mode, "fp_value")] += sum(dt["amount"][b] for b, _ in auto - dt["truth"])
                 agg[(mode, "auto_value")] += sum(dt["amount"][b] for b, _ in auto)
-            agg["true"] += len(dt["truth"]); agg["bank"] += dt["n_bank"]
+            agg["true"] += len(dt["truth"]); agg["bank"] += dt["n_bank"]; agg["gl"] += dt["n_gl"]
         for mode in (["filtered", "recomputed"] if recompute else ["filtered"]):
             a, ok = agg[(mode, "auto")], agg[(mode, "ok")]
             rows.append(dict(mode=mode, tau=t, auto_precision=ok / a, automated_true_pair_recall=ok / agg["true"],
-                             record_automation=a / agg["bank"], review_queue_records=agg["bank"] - a,
+                             record_automation=a / agg["bank"], bank_review_queue=agg["bank"] - a,
+                             ledger_review_queue=agg["gl"] - a,
                              false_auto_matches=a - ok, fp_value_usd=agg[(mode, "fp_value")] / 100,
                              fp_value_share=agg[(mode, "fp_value")] / agg[(mode, "auto_value")]))
     return pd.DataFrame(rows)
+
+
+def time_scoring(model, feats, n, d, seeds, repeats=7):
+    """Like-for-like scoring time of one model on all candidates vs the exact-rule residual."""
+    from statistics import median
+    rows = []
+    for s in seeds:
+        data = make_dataset(Config(n=n, d=d, seed=s))
+        c = candidates(data)
+        r1 = rule_exact(c)
+        rb, rg = {b for b, _ in r1}, {g for _, g in r1}
+        Xa = c[feats].values
+        Xr = c[~(c.b.isin(rb) | c.g.isin(rg)).values][feats].values
+        model.predict_proba(Xa[:256])                     # warm-up
+        ta, tr = [], []
+        for _ in range(repeats):                          # interleaved, so drift affects both equally
+            t = time.perf_counter(); model.predict_proba(Xa); ta.append(time.perf_counter() - t)
+            t = time.perf_counter(); model.predict_proba(Xr); tr.append(time.perf_counter() - t)
+        rows.append(dict(seed=s, pairs_all=len(Xa), pairs_residual=len(Xr), all_s=median(ta), residual_s=median(tr)))
+    return rows
 
 
 def grouped_permutation_importance(model, X, y, groups, repeats=5, seed=0):
@@ -506,6 +534,21 @@ def main():
                 details.append(r.pop("_detail"))
             main_runs.append(r)
     print(f"main grid done ({time.time()-t0:.0f}s)", flush=True)
+    # wall-clock scoring time, like for like: the SAME full-feature model scores all candidates vs only the
+    # residual left by exact rules, interleaved repeats, median per test set. Machine-dependent, so it goes
+    # to timing.json, outside the checksummed results.
+    timing = {"method": "full-feature model, all candidates vs exact-rule residual; median of 7 interleaved repeats per test set",
+              "threads": os.environ.get("OMP_NUM_THREADS") or "default"}
+    for d in [0.5, 1.0]:
+        rows = time_scoring(models["full"], FEATURE_SETS["full"], N, d, TEST_SEEDS)
+        ta, tr = sum(r["all_s"] for r in rows), sum(r["residual_s"] for r in rows)
+        per = [1 - r["residual_s"] / r["all_s"] for r in rows]
+        timing[str(d)] = dict(test_sets=len(rows), pairs_all=sum(r["pairs_all"] for r in rows),
+                              pairs_residual=sum(r["pairs_residual"] for r in rows),
+                              pair_reduction=round(1 - sum(r["pairs_residual"] for r in rows) / sum(r["pairs_all"] for r in rows), 4),
+                              all_candidates_s=round(ta, 4), residual_only_s=round(tr, 4), time_reduction=round(1 - tr / ta, 4),
+                              per_set_time_reduction_min=round(min(per), 4), per_set_time_reduction_max=round(max(per), 4))
+    print(f"timing done ({time.time()-t0:.0f}s)", flush=True)
 
     METHODS = ["R1", "R2", "R3", "M_no_text", "M_no_name", "M_no_ref", "M_full", "MG", "H", "H3", "M_er", "H_ER"]
     raw = [dict(difficulty=r["cfg"]["d"], seed=r["cfg"]["seed"], method=m, precision=r["metrics"][m][0],
@@ -601,7 +644,8 @@ def main():
     STRESS = {"base": Config(n=N, d=0.5), "unseen_vendors": Config(n=N, d=0.5, vendors="B"),
               "unfamiliar_names": Config(n=N, d=0.5, names="unfamiliar"),
               "unseen_and_unfamiliar": Config(n=N, d=0.5, vendors="B", names="unfamiliar"),
-              "repeated_amounts": Config(n=N, d=0.5, recurring=0.3),
+              "monthly_recurring": Config(n=N, d=0.5, recurring=0.3, recurring_gap=30),
+              "weekly_recurring": Config(n=N, d=0.5, recurring=0.3, recurring_gap=7),
               "noise_beyond_training": Config(n=N, d=1.25)}
     S_METHODS = ["R1", "R3", "M_full", "H", "H_ER"]
     srows, sfp, spaired = [], {}, {}
@@ -648,6 +692,8 @@ def main():
                scikit_learn=sklearn.__version__, platform=platform.platform(),
                OMP_NUM_THREADS=os.environ.get("OMP_NUM_THREADS"), PYTHONHASHSEED=os.environ.get("PYTHONHASHSEED"),
                runtime_seconds=round(time.time() - t0, 1))
+    with open(f"{args.out}/timing.json", "w") as f:
+        json.dump(timing, f, indent=1)
     with open(f"{args.out}/environment.json", "w") as f:
         json.dump(env, f, indent=1)
     print(f"done in {time.time()-t0:.0f}s")
