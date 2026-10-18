@@ -1,0 +1,24 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "recon_bench: Benchmark for Rule-Based, Learned and Hybrid Bank-to-Ledger Transaction Matching"
+version: 1.0.0
+date-released: 2026-10-13
+license: MIT
+repository-code: "https://github.com/amirani8137/transaction-matching-benchmark"
+type: software
+authors:
+  - family-names: Mirani
+    given-names: Ajay Parmanand
+    orcid: "https://orcid.org/0009-0007-6208-4755"
+keywords:
+  - transaction matching
+  - financial reconciliation
+  - machine learning
+  - benchmark
+  - AI in finance
+abstract: >-
+  Code and results accompanying "Rules, Learning, or Both? A Controlled
+  Study of Bank-to-Ledger Transaction Matching Under Noise and Distribution
+  Shift". A reproducible synthetic benchmark comparing rule-based, learned
+  and hybrid bank-to-ledger transaction matching. All data is synthetic; a
+  verification script checks every number reported in the paper.
